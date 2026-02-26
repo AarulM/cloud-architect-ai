@@ -1,0 +1,126 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: ai-solutions-architect
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install Python dependencies
+      run: |
+        cd Kunal-project/backend/api
+        pip install -r requirements.txt
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: Kunal-project/frontend/package-lock.json
+    
+    - name: Install Node dependencies
+      run: |
+        cd Kunal-project/frontend
+        npm ci
+    
+    - name: Build frontend
+      run: |
+        cd Kunal-project/frontend
+        npm run build
+
+  deploy-backend:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Set up SAM CLI
+      uses: aws-actions/setup-sam@v2
+    
+    - name: Build SAM application
+      run: |
+        sam build --template-file backend-template.yaml
+    
+    - name: Deploy SAM application
+      run: |
+        sam deploy \
+          --template-file backend-template.yaml \
+          --stack-name ${{ env.STACK_NAME }} \
+          --capabilities CAPABILITY_IAM \
+          --region ${{ env.AWS_REGION }} \
+          --no-confirm-changeset \
+          --no-fail-on-empty-changeset \
+          --parameter-overrides Environment=prod
+    
+    - name: Get API Gateway URL
+      id: get-url
+      run: |
+        API_URL=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayUrl`].OutputValue' \
+          --output text)
+        echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+    
+    outputs:
+      api_url: ${{ steps.get-url.outputs.api_url }}
+
+  deploy-frontend:
+    needs: deploy-backend
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: Kunal-project/frontend/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd Kunal-project/frontend
+        npm ci
+    
+    - name: Build with backend URL
+      run: |
+        cd Kunal-project/frontend
+        REACT_APP_BACKEND_URL=${{ needs.deploy-backend.outputs.api_url }} npm run build
+    
+    - name: Deploy to Amplify
+      run: |
+        echo "Frontend built with backend URL: ${{ needs.deploy-backend.outputs.api_url }}"
+        echo "Deploy manually to Amplify or use Amplify CLI here"

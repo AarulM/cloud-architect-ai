@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # Backend Service
+  backend:
+    build:
+      context: ./Kunal-project/backend/api
+      dockerfile: Dockerfile
+    ports:
+      - "3030:3030"
+    environment:
+      - FLASK_ENV=production
+      - AWS_DEFAULT_REGION=us-east-1
+      - CORS_ORIGIN=*
+    env_file:
+      - .env
+    volumes:
+      - ./Kunal-project/backend/api:/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3030/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Service (for local development)
+  frontend:
+    build:
+      context: ./Kunal-project/frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_BACKEND_URL=http://localhost:3030
+      - GENERATE_SOURCEMAP=false
+    volumes:
+      - ./Kunal-project/frontend/src:/app/src
+      - ./Kunal-project/frontend/public:/app/public
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy (optional)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge

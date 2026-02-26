@@ -1,0 +1,29 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - echo "Current directory:"
+        - pwd
+        - echo "Listing files:"
+        - ls -la
+        - echo "Checking if Kunal-project exists:"
+        - ls -la Kunal-project/
+        - echo "Checking if frontend exists:"
+        - ls -la Kunal-project/frontend/
+        - cd Kunal-project/frontend
+        - echo "Installing dependencies..."
+        - npm ci
+    build:
+      commands:
+        - echo "Building application..."
+        - npm run build
+        - echo "Build completed, checking build directory:"
+        - ls -la build/
+  artifacts:
+    baseDirectory: Kunal-project/frontend/build
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - Kunal-project/frontend/node_modules/**/*
