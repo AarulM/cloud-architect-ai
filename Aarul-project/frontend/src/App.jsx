@@ -3,6 +3,8 @@ import Message, { TypingIndicator } from './components/Message';
 import ChatInput from './components/ChatInput';
 import ArchitecturePanel from './components/ArchitecturePanel';
 import BackendSetupGuide from './components/BackendSetupGuide';
+import AuthPage from './components/AuthPage';
+import { useAuth } from './utils/AuthContext';
 
 import RequirementsCapture from './components/RequirementsCapture';
 import EnhancedWorkflow from './components/EnhancedWorkflow';
@@ -38,6 +40,8 @@ const readFileContent = (file) => {
  * Main application component for Cloud Architect AI
  */
 function App() {
+  const { user, loading, signOut } = useAuth();
+
   // State management
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -407,6 +411,19 @@ Make sure the backend is running:
     setDemoMode(false);
   };
 
+  // Auth guards — after all hooks
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <i className="fas fa-spinner fa-spin text-blue-600 text-3xl"></i>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Compact Fixed Header */}
@@ -499,6 +516,14 @@ Make sure the backend is running:
                   title="New session"
                 >
                   <i className="fas fa-sync text-sm group-hover:rotate-180 transition-transform duration-200"></i>
+                </button>
+
+                <button
+                  onClick={signOut}
+                  className="p-2 rounded-lg hover:bg-white/15 transition-all duration-200"
+                  title="Sign out"
+                >
+                  <i className="fas fa-sign-out-alt text-sm"></i>
                 </button>
               </div>
             </div>

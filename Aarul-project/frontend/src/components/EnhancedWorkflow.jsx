@@ -594,6 +594,7 @@ Please provide a completely revised version that addresses the feedback above. M
                 });
               }}
               isActive={true}
+              onSendMessage={onSendMessage}
             />
           ) : activePhase === 'document-review' ? (
             /* Document Review Phase - Use dedicated component */

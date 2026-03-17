@@ -1,5 +1,4 @@
 import React, { useState, useRef } from 'react';
-import { getApiUrl, getDefaultRequestConfig } from '../utils/config';
 import MarkdownRenderer from './MarkdownRenderer';
 
 /**
@@ -10,13 +9,14 @@ const RequirementsCapture = ({
   sessionId,
   onComplete,
   onUpdate,
+  onSendMessage,
   isActive = false,
-  existingData = null, // Add support for existing data
-  phase = 'discovery' // Add phase prop to determine behavior
+  existingData = null,
+  phase = 'discovery'
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [attachedFile, setAttachedFile] = useState(null);
-  const [projectContext, setProjectContext] = useState(existingData?.projectContext || '');
+  const [projectContext, setProjectContext] = useState(existingData?.projectContext || `Example: E-commerce company with 50k daily orders. Struggling with downtime during traffic spikes (Black Friday, flash sales). Need AWS migration for auto-scaling, 99.9% uptime, PCI-DSS compliance, and CI/CD pipeline for a 15-person dev team.`);
   const [phaseSummary, setPhaseSummary] = useState(existingData?.summary || '');
   const [currentStep, setCurrentStep] = useState(
     existingData?.summary ? 'summary' : 'upload'
@@ -60,7 +60,6 @@ const RequirementsCapture = ({
       let message = '';
 
       if (attachedFile) {
-        // Read file content
         const fileContent = await readFileContent(attachedFile);
         if (phase === 'discovery') {
           message = `Please analyze this discovery call transcript and extract comprehensive business context, challenges, and initial requirements for an AWS architecture project:\n\n${fileContent}`;
@@ -75,44 +74,27 @@ const RequirementsCapture = ({
         }
       }
 
-      const response = await fetch(getApiUrl('workflowPhase'), {
-        method: 'POST',
-        ...getDefaultRequestConfig(),
-        body: JSON.stringify({
-          session_id: sessionId,
-          phase: phase,
-          message: message
-        })
-      });
+      const response = await onSendMessage(message, attachedFile, phase);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.status === 'success') {
-        setPhaseSummary(data.response);
+      if (response && response.text) {
+        setPhaseSummary(response.text);
         setCurrentStep('summary');
         onUpdate && onUpdate({
           phase: phase,
           status: 'completed',
-          summary: data.response,
+          summary: response.text,
           projectContext: projectContext,
           attachedFileName: attachedFile?.name || null
         });
       } else {
-        throw new Error(data.error || 'Failed to process transcript');
+        throw new Error('No response received from backend');
       }
     } catch (error) {
       console.error('Error processing transcript:', error);
-
-      // Don't show MCP session conflict errors to users
       if (error.message.includes('client session is currently running')) {
         console.log('MCP session conflict - backend will retry automatically');
-        return; // Don't show alert for this case
+        return;
       }
-
       alert(`Error: ${error.message}`);
     } finally {
       setIsLoading(false);

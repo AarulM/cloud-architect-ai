@@ -11,6 +11,11 @@ import uuid
 import logging
 import boto3
 from botocore.exceptions import ClientError
+import os
+from dotenv import load_dotenv
+
+# Load .env from project root (3 levels up from this file)
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '..', '.env'))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,7 +26,7 @@ CORS(app)
 # Initialize Bedrock Runtime client
 bedrock_runtime = None
 REGION = "us-east-1"
-MODEL_ID = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"  # Using inference profile
+MODEL_ID = "us.anthropic.claude-3-5-haiku-20241022-v1:0"
 
 try:
     bedrock_runtime = boto3.client('bedrock-runtime', region_name=REGION)
@@ -336,6 +341,30 @@ def create_session():
         "session_id": f"session-{str(uuid.uuid4())}",
         "status": "created"
     })
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+
+        content = file.read().decode('utf-8', errors='ignore')
+
+        return jsonify({
+            "status": "success",
+            "filename": file.filename,
+            "size": len(content),
+            "content_type": file.content_type,
+            "message": f"File '{file.filename}' uploaded successfully",
+            "content": content
+        })
+    except Exception as e:
+        logger.error(f"Upload error: {e}")
+        return jsonify({"error": str(e), "status": "error"}), 500
 
 if __name__ == '__main__':
     print("🚀 Starting Direct Bedrock Backend")
